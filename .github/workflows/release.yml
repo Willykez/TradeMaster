@@ -34,6 +34,20 @@ jobs:
       - name: Check Gradle wrapper
         run: ./gradlew --version
 
+      # A release build ships to real people -- unlike Build Check, there's
+      # no placeholder fallback here on purpose. A release built against
+      # fake Firebase credentials would silently ship broken sync/push/auth,
+      # which is worse than the workflow just failing loudly.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "ERROR: GOOGLE_SERVICES_JSON_B64 secret is not configured."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+
       - name: Decode signing keystore
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
@@ -69,7 +83,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CodeOrganizer-release
+          name: TradeMasterPro-release
           path: ${{ steps.apk.outputs.path }}
 
       - name: Create GitHub Release

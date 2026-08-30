@@ -115,6 +115,24 @@ missing" until it has one. Two ways to give it one:
 when it's set, falls back to the placeholder otherwise. Rename it (drop
 `.example`) once the secret is in place.
 
+## 7. Release signing (for the tag-triggered release workflow)
+
+`.github/workflows/release.yml` decodes a keystore secret and passes signing
+credentials as env vars; `app/build.gradle.kts` reads them and wires a real
+`signingConfig` for the `release` build type -- if any of these aren't set,
+the release build type is simply left unsigned (buildable locally for
+testing, not something to distribute). Four repo secrets needed:
+
+- `KEYSTORE_B64` -- your `.jks`/`.keystore` file, base64-encoded
+  (`base64 -i your.keystore | tr -d '\n'`)
+- `KEY_ALIAS`
+- `STORE_PASSWORD`
+- `KEY_PASSWORD`
+
+Don't have a keystore yet: `keytool -genkeypair -v -keystore release.keystore -alias trademaster -keyalg RSA -keysize 2048 -validity 10000`.
+Keep that file and its passwords somewhere durable outside git -- losing it
+means you can never publish an update to the same app listing again.
+
 ## What's still not done
 
 - **No email/password login, no per-user identity** -- every install is an

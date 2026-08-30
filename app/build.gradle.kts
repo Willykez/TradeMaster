@@ -13,6 +13,16 @@ val twelveDataApiKey: String = (localProps.getProperty("TWELVE_DATA_API_KEY") ?:
     if (it.isBlank()) println("⚠ TWELVE_DATA_API_KEY not set in local.properties -- live prices will fall back to the local simulator.")
 }
 
+// Release signing reads from environment, not local.properties -- these
+// are meant to come from CI secrets (see .github/workflows/release.yml:
+// RELEASE_KEYSTORE_PATH is set via GITHUB_ENV after decoding the keystore
+// secret; KEY_ALIAS/STORE_PASSWORD/KEY_PASSWORD are passed as step env).
+// Locally, none of these are set, so the release build type is simply left
+// unsigned -- still buildable for testing, just not something you'd
+// distribute.
+val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
+val hasReleaseSigning = !releaseKeystorePath.isNullOrBlank()
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -34,9 +44,23 @@ android {
         buildConfigField("String", "TWELVE_DATA_API_KEY", "\"$twelveDataApiKey\"")
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = System.getenv("STORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

@@ -31,5 +31,20 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # Debug builds only need to compile, not actually talk to a real
+      # Firebase project -- use the real secret if this repo has one set,
+      # otherwise fall back to the schema-valid placeholder so PRs from
+      # forks (which never get real secrets) still get a build check.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+          else
+            echo "No GOOGLE_SERVICES_JSON_B64 secret -- using the CI placeholder (compiles, Firebase calls won't work at runtime)."
+            cp app/google-services.json.ci-placeholder app/google-services.json
+          fi
+
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
