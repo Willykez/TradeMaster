@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "CodeOrganizer"
+rootProject.name = "TradeMasterPro"
 include(":app")

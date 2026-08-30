@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Whether the signed-in caller is an admin is a server-side fact, not
+    // something the client asserts. It's true only if a document exists at
+    // admins/{their uid} -- created by hand in the Firebase console, or by
+    // whatever admin-onboarding flow you build later. There is no
+    // "isAdmin: true" field to flip on a doc anyone can write; existence
+    // of the doc itself, under a path only this rule file can write to
+    // (writes to /admins are blocked entirely below), is the check.
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Public content: anyone with the app (signed in anonymously, which
+    // happens automatically on launch) can read. Only admins can write.
+    match /signals/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /posts/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /polls/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /qa/{id}       { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /courses/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /media/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+
+    // Nobody writes here from the app, ever -- only you, from the Firebase
+    // console, when you decide to grant someone admin access. Anyone can
+    // read it only to the extent isAdmin() needs to check existence
+    // (exists() doesn't require a read rule to pass, so this can stay
+    // fully locked).
+    match /admins/{uid} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

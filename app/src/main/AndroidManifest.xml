@@ -1,23 +1,45 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Needed to call the Claude API directly from the device -->
+    <!-- Required on Android 13+ (API 33) to post any notification, including
+         the FCM pushes this app receives on the "new_signals" topic. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Code Organizer"
+        android:label="TradeMaster Pro"
+        android:theme="@style/Theme.TradeMasterPro"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CodeOrganizer">
+        android:name=".TradeMasterApplication">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.CodeOrganizer">
+            android:theme="@style/Theme.TradeMasterPro">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".notifications.TradeMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Default channel/icon/color FCM falls back to for data-only
+             messages or when the app is backgrounded. Must match the
+             channel created in NotificationHelper. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="trademaster_signals" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
     </application>
 </manifest>
