@@ -71,6 +71,14 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // Material3's TopAppBar, its color defaults, chips, etc. are marked
+        // @ExperimentalMaterial3Api -- using them without this opt-in is a
+        // compile ERROR (not a warning) by default. Scoping it here once,
+        // module-wide, beats scattering @OptIn across every composable that
+        // touches the top bar, chips, or scrollable tabs.
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+        )
     }
 
     buildFeatures {
