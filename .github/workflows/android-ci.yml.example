@@ -1,0 +1,53 @@
+# Rename to android-ci.yml once GOOGLE_SERVICES_JSON_B64 is set as a repo
+# secret (Settings -> Secrets and variables -> Actions -> New repository
+# secret). Get the base64 value locally with:
+#
+#   base64 -i app/google-services.json | tr -d '\n'
+#
+# (macOS: base64 -i file; Linux: base64 -w0 file -- flag differs, adjust as
+# needed). Paste the output as the secret's value.
+#
+# TWELVE_DATA_API_KEY is optional -- omit it and the CI build still
+# compiles fine (see build.gradle.kts: it only affects a runtime fallback,
+# never fails the build).
+
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > app/google-services.json
+          else
+            echo "No GOOGLE_SERVICES_JSON_B64 secret set -- using the CI placeholder."
+            echo "The APK will compile but Firebase calls will fail at runtime."
+            cp app/google-services.json.ci-placeholder app/google-services.json
+          fi
+
+      - name: Write local.properties
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: echo "TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY:-}" >> local.properties
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace

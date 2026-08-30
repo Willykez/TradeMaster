@@ -93,6 +93,28 @@ available on Firebase's free Spark plan. The free tier's monthly quota
 (2M invocations) is enormous for this use case, so realistically this
 costs nothing unless the app gets very large.
 
+## 6. CI (GitHub Actions)
+
+`app/google-services.json` is gitignored on purpose (it's a real Firebase
+credential), which means a fresh CI runner has none -- `assembleDebug` will
+fail on `:app:processDebugGoogleServices` with "File google-services.json is
+missing" until it has one. Two ways to give it one:
+
+- **Real credentials (production builds):** base64-encode your
+  `google-services.json`, store it as a GitHub Actions secret named
+  `GOOGLE_SERVICES_JSON_B64`, and decode it back to `app/google-services.json`
+  as a build step. `TWELVE_DATA_API_KEY` works the same way for
+  `local.properties`.
+- **Placeholder (compile-check only, e.g. PRs from forks that shouldn't get
+  real secrets):** `app/google-services.json.ci-placeholder` is a
+  schema-valid dummy that lets the Google Services plugin succeed and the
+  APK compile and package -- Firebase calls will fail at runtime with it,
+  but that's fine for "does this even build" gating.
+
+`.github/workflows/android-ci.yml.example` does both: uses the real secret
+when it's set, falls back to the placeholder otherwise. Rename it (drop
+`.example`) once the secret is in place.
+
 ## What's still not done
 
 - **No email/password login, no per-user identity** -- every install is an
