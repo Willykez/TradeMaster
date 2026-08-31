@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import com.trademaster.pro.AppMode
 import com.trademaster.pro.data.repo.AdminAuthRepository
 import com.trademaster.pro.data.repo.TradeRepository
+import com.trademaster.pro.ui.components.AdminLoginDialog
 import com.trademaster.pro.ui.screens.community.CommunityScreen
 import com.trademaster.pro.ui.screens.community.CommunityViewModel
 import com.trademaster.pro.ui.screens.dashboard.DashboardScreen
@@ -48,6 +49,9 @@ fun TradeMasterRoot(
     val currentRoute = backStackEntry?.destination
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showLoginDialog by remember { mutableStateOf(false) }
+    var loginLoading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
 
     // Server-granted, not client-decided: true only once Firestore confirms
     // this device's UID has a document under admins/. The bottom-nav mode
@@ -82,12 +86,18 @@ fun TradeMasterRoot(
                             onModeChange(AppMode.CLIENT)
                         } else if (isAdminGranted) {
                             onModeChange(AppMode.ADMIN)
-                        } else {
+                        } else if (adminAuth.isAdminAccount()) {
+                            // Already logged into the admin account on this
+                            // device, just not (yet) on the allowlist --
+                            // no point re-showing a login form for that.
                             scope.launch {
                                 snackbarHostState.showSnackbar(
-                                    "This device isn't on the admin list yet. Ask the project owner to add your UID in the Firebase console."
+                                    "Signed in as ${adminAuth.currentEmail() ?: "admin"}, but this account isn't on the admin list yet. UID: ${adminAuth.currentUid()}"
                                 )
                             }
+                        } else {
+                            loginError = null
+                            showLoginDialog = true
                         }
                     }) {
                         Icon(
@@ -156,9 +166,40 @@ fun TradeMasterRoot(
                     LearnScreen(vm, mode)
                 }
                 composable("settings") {
-                    SettingsScreen()
+                    SettingsScreen(adminAuth = adminAuth, onModeChange = onModeChange)
                 }
             }
         }
+    }
+
+    if (showLoginDialog) {
+        AdminLoginDialog(
+            uidForDisplay = adminAuth.currentUid(),
+            loading = loginLoading,
+            error = loginError,
+            onDismiss = { showLoginDialog = false; loginError = null },
+            onSubmit = { email, password ->
+                scope.launch {
+                    loginLoading = true
+                    loginError = null
+                    val result = adminAuth.signInAdmin(email, password)
+                    if (result.isFailure) {
+                        loginLoading = false
+                        loginError = result.exceptionOrNull()?.localizedMessage ?: "Sign-in failed"
+                    } else {
+                        val granted = adminAuth.checkIsAdminOnce()
+                        loginLoading = false
+                        if (granted) {
+                            showLoginDialog = false
+                            onModeChange(AppMode.ADMIN)
+                        } else {
+                            loginError = "Signed in, but this account isn't on the admin list yet.\n" +
+                                "UID: ${adminAuth.currentUid()}\n" +
+                                "Ask the project owner to add it under admins/ in Firebase Console -> Firestore."
+                        }
+                    }
+                }
+            }
+        )
     }
 }

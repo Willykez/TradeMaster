@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trademaster.pro.ui.theme.*
@@ -126,7 +127,8 @@ fun FormField(
     isError: Boolean = false,
     errorText: String? = null,
     singleLine: Boolean = true,
-    minLines: Int = 1
+    minLines: Int = 1,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier = modifier) {
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextDim)
@@ -138,6 +140,7 @@ fun FormField(
             singleLine = singleLine,
             minLines = minLines,
             isError = isError,
+            visualTransformation = visualTransformation,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Gold,
                 unfocusedBorderColor = Border,
