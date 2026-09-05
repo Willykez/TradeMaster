@@ -112,7 +112,9 @@ jobs:
           echo "Found APK: $apk_path"
           echo "path=$apk_path" >> "$GITHUB_OUTPUT"
 
-      # Verify the actual APK certificate as an additional check.
+      # Find Android SDK's apksigner automatically.
+      # It is installed on GitHub's Android runner but may not
+      # be available directly through PATH.
       - name: Verify APK signing certificate
         env:
           APK_PATH: ${{ steps.apk.outputs.path }}
@@ -121,8 +123,30 @@ jobs:
           echo "Actual APK signing certificate"
           echo "========================================"
 
-          apksigner verify --print-certs "$APK_PATH"
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
 
+          if [ -z "$SDK_ROOT" ]; then
+            echo "ERROR: Android SDK location was not found."
+            exit 1
+          fi
+
+          APKSIGNER=$(find "$SDK_ROOT/build-tools" \
+            -type f \
+            -name "apksigner" \
+            | sort -V \
+            | tail -n 1)
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "ERROR: apksigner was not found in Android SDK build-tools."
+            exit 1
+          fi
+
+          echo "Using apksigner: $APKSIGNER"
+          echo ""
+
+          "$APKSIGNER" verify --print-certs "$APK_PATH"
+
+          echo ""
           echo "========================================"
 
       # Upload APK as a GitHub Actions artifact.
