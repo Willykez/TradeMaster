@@ -34,10 +34,8 @@ jobs:
       - name: Check Gradle wrapper
         run: ./gradlew --version
 
-      # A release build ships to real people -- unlike Build Check, there's
-      # no placeholder fallback here on purpose. A release built against
-      # fake Firebase credentials would silently ship broken sync/push/auth,
-      # which is worse than the workflow just failing loudly.
+      # A release build ships to real people.
+      # Do not use the Firebase placeholder for releases.
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
@@ -46,8 +44,10 @@ jobs:
             echo "ERROR: GOOGLE_SERVICES_JSON_B64 secret is not configured."
             exit 1
           fi
+
           echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
 
+      # Decode the release signing keystore.
       - name: Decode signing keystore
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
@@ -58,8 +58,39 @@ jobs:
           fi
 
           echo "$KEYSTORE_B64" | base64 --decode > release.keystore
+
           echo "RELEASE_KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> "$GITHUB_ENV"
 
+      # Show the SHA-1 and SHA-256 fingerprints of the
+      # certificate used to sign the release APK.
+      - name: Show release signing fingerprints
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "ERROR: KEY_ALIAS secret is not configured."
+            exit 1
+          fi
+
+          if [ -z "$STORE_PASSWORD" ]; then
+            echo "ERROR: STORE_PASSWORD secret is not configured."
+            exit 1
+          fi
+
+          echo "========================================"
+          echo "Release signing certificate fingerprints"
+          echo "========================================"
+
+          keytool -list -v \
+            -keystore release.keystore \
+            -alias "$KEY_ALIAS" \
+            -storepass "$STORE_PASSWORD" \
+            | grep -E "SHA1:|SHA256:"
+
+          echo "========================================"
+
+      # Build the signed release APK.
       - name: Build release APK
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -67,6 +98,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
+      # Find the generated APK.
       - name: Locate APK
         id: apk
         run: |
@@ -80,12 +112,27 @@ jobs:
           echo "Found APK: $apk_path"
           echo "path=$apk_path" >> "$GITHUB_OUTPUT"
 
+      # Verify the actual APK certificate as an additional check.
+      - name: Verify APK signing certificate
+        env:
+          APK_PATH: ${{ steps.apk.outputs.path }}
+        run: |
+          echo "========================================"
+          echo "Actual APK signing certificate"
+          echo "========================================"
+
+          apksigner verify --print-certs "$APK_PATH"
+
+          echo "========================================"
+
+      # Upload APK as a GitHub Actions artifact.
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: TradeMasterPro-release
           path: ${{ steps.apk.outputs.path }}
 
+      # Create GitHub Release only when a v* tag is pushed.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
