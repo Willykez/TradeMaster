@@ -13,6 +13,18 @@ val twelveDataApiKey: String = (localProps.getProperty("TWELVE_DATA_API_KEY") ?:
     if (it.isBlank()) println("⚠ TWELVE_DATA_API_KEY not set in local.properties -- live prices will fall back to the local simulator.")
 }
 
+// Deliberately NOT read from google-services.json's auto-generated
+// default_web_client_id resource -- that resource only exists once Google
+// Sign-In is enabled in the Firebase console AND the file is re-downloaded,
+// so referencing it directly would make the whole app fail to compile for
+// anyone who hasn't done that yet. Reading it from local.properties instead
+// means the Google Sign-In button just shows a clear "not configured" error
+// at runtime until it's set, same graceful-degradation pattern as the
+// market data key above.
+val googleWebClientId: String = (localProps.getProperty("GOOGLE_WEB_CLIENT_ID") ?: "").also {
+    if (it.isBlank()) println("⚠ GOOGLE_WEB_CLIENT_ID not set in local.properties -- Google Sign-In button will show a setup error instead of launching.")
+}
+
 // Release signing reads from environment, not local.properties -- these
 // are meant to come from CI secrets (see .github/workflows/release.yml:
 // RELEASE_KEYSTORE_PATH is set via GITHUB_ENV after decoding the keystore
@@ -42,6 +54,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "TWELVE_DATA_API_KEY", "\"$twelveDataApiKey\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     signingConfigs {
@@ -113,6 +126,14 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
+
+    // Google Sign-In for regular users (admin keeps its own email/password
+    // flow, untouched). Credential Manager is the current recommended
+    // replacement for the old GoogleSignInClient API; the play-services-auth
+    // artifact provides the backward-compatible path down to minSdk 26.
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Live market data
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

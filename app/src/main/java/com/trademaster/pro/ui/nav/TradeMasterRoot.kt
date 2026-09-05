@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,7 +22,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.trademaster.pro.AppMode
+import com.trademaster.pro.BuildConfig
+import com.trademaster.pro.auth.requestGoogleIdToken
 import com.trademaster.pro.data.repo.AdminAuthRepository
+import com.trademaster.pro.data.repo.AuthSummary
 import com.trademaster.pro.data.repo.TradeRepository
 import com.trademaster.pro.ui.components.AdminLoginDialog
 import com.trademaster.pro.ui.screens.community.CommunityScreen
@@ -49,9 +54,18 @@ fun TradeMasterRoot(
     val currentRoute = backStackEntry?.destination
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var showLoginDialog by remember { mutableStateOf(false) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
+
+    // Single reactive source for "who's signed in right now" -- updates live
+    // across Google sign-in, admin sign-in, and sign-out, from anywhere in
+    // the app (e.g. Settings' sign-out button), unlike a plain function call
+    // which Compose would never know to re-read.
+    val authSummary by adminAuth.observeAuthSummary().collectAsState(
+        initial = AuthSummary(isAnonymous = true, isGoogleUser = false, isAdminAccount = false, email = null, displayName = null, uid = null)
+    )
 
     // Server-granted, not client-decided: true only once Firestore confirms
     // this device's UID has a document under admins/. The bottom-nav mode
@@ -81,18 +95,43 @@ fun TradeMasterRoot(
                     }
                 },
                 actions = {
+                    if (mode == AppMode.CLIENT && !authSummary.isGoogleUser) {
+                        IconButton(onClick = {
+                            scope.launch {
+                                val token = requestGoogleIdToken(context, BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                                if (token == null) {
+                                    snackbarHostState.showSnackbar(
+                                        if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank())
+                                            "Google Sign-In isn't configured yet."
+                                        else
+                                            "Sign-in cancelled."
+                                    )
+                                } else {
+                                    val result = adminAuth.signInWithGoogleIdToken(token)
+                                    val message = if (result.isSuccess) {
+                                        "Signed in as ${adminAuth.currentEmail() ?: "your Google account"}"
+                                    } else {
+                                        "Sign-in failed: ${result.exceptionOrNull()?.localizedMessage}"
+                                    }
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Filled.Login, contentDescription = "Sign in with Google", tint = TextDim)
+                        }
+                    }
                     IconButton(onClick = {
                         if (mode == AppMode.ADMIN) {
                             onModeChange(AppMode.CLIENT)
                         } else if (isAdminGranted) {
                             onModeChange(AppMode.ADMIN)
-                        } else if (adminAuth.isAdminAccount()) {
+                        } else if (authSummary.isAdminAccount) {
                             // Already logged into the admin account on this
                             // device, just not (yet) on the allowlist --
                             // no point re-showing a login form for that.
                             scope.launch {
                                 snackbarHostState.showSnackbar(
-                                    "Signed in as ${adminAuth.currentEmail() ?: "admin"}, but this account isn't on the admin list yet. UID: ${adminAuth.currentUid()}"
+                                    "Signed in as ${authSummary.email ?: "admin"}, but this account isn't on the admin list yet. UID: ${authSummary.uid}"
                                 )
                             }
                         } else {

@@ -18,14 +18,31 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Public content: anyone with the app (signed in anonymously, which
-    // happens automatically on launch) can read. Only admins can write.
+    // "Official" content: published by the project, not by members.
+    // Anonymous, Google, and admin accounts can all read; only admin can write.
     match /signals/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /posts/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /polls/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /qa/{id}       { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /courses/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /media/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+
+    // Community content: admin creates/pins/deletes posts and polls and
+    // deletes Q&A, but the whole point of these collections is that members
+    // interact with them -- liking a post, voting a poll, asking a
+    // question -- so any signed-in account (anonymous or Google) can update
+    // them too.
+    //
+    // Trade-off worth knowing: "update" here is document-level, not
+    // field-level, so a signed-in member technically *could* rewrite a
+    // post's text or a poll's question, not just its own like/vote --
+    // Firestore rules can't cheaply restrict "only this one field" without
+    // duplicating each document's shape into the rule itself. Fine for a
+    // hobby-scale app where the failure mode is "someone edits a poll
+    // question" rather than anything that costs money; if this app grows
+    // real stakes, the fix is moving likes/votes into their own
+    // per-user subcollections (e.g. posts/{id}/likes/{uid}) that rules can
+    // restrict to "you may only write your own document".
+    match /posts/{id}    { allow read: if isSignedIn(); allow create, delete: if isAdmin(); allow update: if isSignedIn(); }
+    match /polls/{id}    { allow read: if isSignedIn(); allow create, delete: if isAdmin(); allow update: if isSignedIn(); }
+    match /qa/{id}       { allow read: if isSignedIn(); allow create, update: if isSignedIn(); allow delete: if isAdmin(); }
 
     // Nobody writes here from the app, ever -- only you, from the Firebase
     // console, when you decide to grant someone admin access. Anyone can

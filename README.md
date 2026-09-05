@@ -61,6 +61,43 @@ Firestore, which nothing in the app is allowed to create (see
 
 Repeat step 3 for anyone else you want to be able to publish content.
 
+## 3.5 Google Sign-In for regular users (admin still logs in separately)
+
+Regular users get a "Sign in with Google" icon in the top bar (their identity
+becomes persistent -- likes/votes survive reinstalls). The admin login
+dialog is completely separate (email/password, from step 3) -- this section
+only affects the Google button.
+
+1. Firebase Console → Authentication → Sign-in method → enable **Google**,
+   pick a support email
+2. This step also auto-creates OAuth client IDs, but only once your app's
+   signing certificate is registered: Project settings (gear icon) → your
+   Android app → **Add fingerprint** → paste your SHA-1
+   - Debug: `./gradlew signingReport` (Gradle prints the debug keystore's
+     SHA-1)
+   - Release: same idea, but run it against your actual release keystore --
+     `keytool -list -v -keystore release.keystore -alias <your alias>`
+   - Add both if you test debug builds locally and ship signed release
+     builds via CI
+3. Re-download `google-services.json` (Project settings → your app →
+   the download button) and replace `app/google-services.json` -- the
+   file needs to be regenerated *after* adding fingerprints and enabling
+   Google sign-in, the one from step 3 earlier won't have this baked in
+4. Copy the **Web client ID** shown on the Google sign-in method page
+   (Authentication → Sign-in method → Google → Web SDK configuration) --
+   this is different from the Android client ID, don't mix them up
+5. Add it to `local.properties`:
+   ```
+   GOOGLE_WEB_CLIENT_ID=your_web_client_id_here.apps.googleusercontent.com
+   ```
+6. Update the `GOOGLE_SERVICES_JSON_B64` CI secret from the new file
+   (step 6 below covers CI) if you want CI-built APKs to have this working
+   too
+
+Without this configured, the Google Sign-In button just shows "Google
+Sign-In isn't configured yet" instead of crashing -- same graceful-fallback
+pattern as the market data key.
+
 ## 4. Live market data (optional but recommended)
 
 1. Get a free key at https://twelvedata.com/pricing (free tier: 8
