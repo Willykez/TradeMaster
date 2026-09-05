@@ -1,0 +1,73 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Verify Firebase configuration secret
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "ERROR: GOOGLE_SERVICES_JSON_B64 secret is not configured."
+            echo "Go to:"
+            echo "Settings -> Secrets and variables -> Actions"
+            echo "and create GOOGLE_SERVICES_JSON_B64."
+            exit 1
+          fi
+
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+
+          if [ ! -s app/google-services.json ]; then
+            echo "ERROR: google-services.json was not created."
+            exit 1
+          fi
+
+          echo "google-services.json created successfully."
+
+      - name: Write local.properties
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          echo "TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY:-}" > local.properties
+          echo "GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}" >> local.properties
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Check Gradle
+        run: ./gradlew --version
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeMasterPro-debug
+          path: app/build/outputs/apk/debug/*.apk
